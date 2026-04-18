@@ -1,0 +1,203 @@
+-- ============================================================
+-- 011_seed_clients.sql — Dados fictícios de clientes (Sprint 3)
+-- Execute APENAS em ambiente de desenvolvimento.
+-- ============================================================
+
+INSERT INTO clients (company_name, nickname, unit_city, contact_name, email, phone, price_per_cm2, substrates, plate_thicknesses, ink_types, active)
+VALUES
+  (
+    'Gráfica Paulista Embalagens Ltda',
+    'Paulista',
+    'São Paulo - SP',
+    'Fernando Rezende',
+    'fernando.rezende@graficapaulista.com.br',
+    '(11) 98234-5610',
+    0.0880,
+    ARRAY['bopp', 'metalizado', 'transparente'],
+    ARRAY['1.14', '1.70'],
+    ARRAY['água', 'solvente'],
+    true
+  ),
+  (
+    'Alimentos Bom Sabor S/A',
+    'BomSabor',
+    'Campinas - SP',
+    'Renata Coelho',
+    'renata.coelho@bomsabor.ind.br',
+    '(19) 97654-3210',
+    0.0920,
+    ARRAY['bopp', 'papel'],
+    ARRAY['1.70', '2.84'],
+    ARRAY['água'],
+    true
+  ),
+  (
+    'Indústria Têxtil Carioca',
+    'Carioca',
+    'Rio de Janeiro - RJ',
+    'Marcos Drumond',
+    'marcos@textilcarioca.com.br',
+    '(21) 99102-7733',
+    0.0790,
+    ARRAY['nylon', 'poliéster'],
+    ARRAY['1.14', '2.54'],
+    ARRAY['solvente', 'uv'],
+    true
+  ),
+  (
+    'Distribuidora Nordeste Flex Ltda',
+    'NordFlex',
+    'Fortaleza - CE',
+    'Jéssica Barros',
+    'jessica.barros@nordesteflex.com.br',
+    '(85) 99344-6622',
+    0.0850,
+    ARRAY['metalizado', 'transparente', 'pvc'],
+    ARRAY['1.14'],
+    ARRAY['uv'],
+    true
+  ),
+  (
+    'Laticínios Vale Verde S/A',
+    'ValeVerde',
+    'Belo Horizonte - MG',
+    'Rogério Pimentel',
+    'rogerio@valevertde.ind.br',
+    '(31) 98801-4400',
+    0.0860,
+    ARRAY['bopp', 'metalizado'],
+    ARRAY['1.70', '2.84'],
+    ARRAY['água', 'solvente'],
+    true
+  ),
+  (
+    'Embalagens Gaúcha Flex',
+    'GaúchaFlex',
+    'Porto Alegre - RS',
+    'Luciana Fontana',
+    'luciana.fontana@gauchaflex.com.br',
+    '(51) 99455-2211',
+    0.0910,
+    ARRAY['bopp', 'transparente', 'papel'],
+    ARRAY['1.14', '1.70', '2.84'],
+    ARRAY['água'],
+    true
+  ),
+  (
+    'Química Amazônica Ltda',
+    'QuimAm',
+    'Manaus - AM',
+    'Eduardo Teixeira',
+    'eduardo@quimamazonica.com.br',
+    '(92) 98733-9900',
+    0.0950,
+    ARRAY['pvc', 'poliéster'],
+    ARRAY['2.54', '3.94'],
+    ARRAY['solvente', 'uv'],
+    true
+  ),
+  (
+    'Frigorífico Sul Brasil S/A',
+    'SulBrasil',
+    'Curitiba - PR',
+    'Patricia Wirth',
+    'patricia.wirth@sulbrasil.ind.br',
+    '(41) 99200-5577',
+    0.0830,
+    ARRAY['nylon', 'metalizado'],
+    ARRAY['1.14', '1.70'],
+    ARRAY['solvente'],
+    true
+  ),
+  (
+    'Cosméticos Beleza Total Ltda',
+    'BelezaTotal',
+    'São Paulo - SP',
+    'Aline Souza',
+    'aline@belezatotal.com.br',
+    '(11) 97300-8844',
+    0.1050,
+    ARRAY['metalizado', 'transparente', 'bopp'],
+    ARRAY['1.14'],
+    ARRAY['uv'],
+    true
+  ),
+  (
+    'Cooperativa Agrícola Central',
+    'CoopCentral',
+    'Ribeirão Preto - SP',
+    'Henrique Borges',
+    'henrique@coopcentral.coop.br',
+    '(16) 99510-3344',
+    0.0820,
+    ARRAY['papel', 'bopp'],
+    ARRAY['1.70', '2.84'],
+    ARRAY['água'],
+    true
+  ),
+  (
+    'Indústria Plástica Delta',
+    'Delta',
+    'Santo André - SP',
+    'Sônia Nakamura',
+    'sonia@plasticadelta.com.br',
+    '(11) 98122-6690',
+    0.0870,
+    ARRAY['pvc', 'poliéster', 'transparente'],
+    ARRAY['2.54', '3.94'],
+    ARRAY['solvente', 'uv'],
+    true
+  ),
+  (
+    'Bebidas Cristal S/A',
+    'Cristal',
+    'Goiânia - GO',
+    'Rafael Mendes',
+    'rafael.mendes@bebidascristal.com.br',
+    '(62) 99688-1122',
+    0.0900,
+    ARRAY['bopp', 'metalizado'],
+    ARRAY['1.14', '1.70'],
+    ARRAY['água', 'solvente'],
+    true
+  ),
+  (
+    'Farmácias Vida Nova Ltda',
+    'VidaNova',
+    'Brasília - DF',
+    'Tatiane Leal',
+    'tatiane.leal@vidanova.farm.br',
+    '(61) 99311-7788',
+    0.0980,
+    ARRAY['bopp', 'papel'],
+    ARRAY['1.14'],
+    ARRAY['uv'],
+    true
+  ),
+  (
+    'Confecções Moda Brasil',
+    'ModaBrasil',
+    'Blumenau - SC',
+    'Daniela Krause',
+    'daniela@modabrasil.com.br',
+    '(47) 99877-5500',
+    0.0760,
+    ARRAY['poliéster', 'nylon'],
+    ARRAY['1.70', '2.54'],
+    ARRAY['solvente'],
+    false
+  ),
+  (
+    'Sucos Tropicais do Norte Ltda',
+    'TropiNorte',
+    'Belém - PA',
+    'Antônio Figueiredo',
+    'antonio@tropinorte.com.br',
+    '(91) 98500-4433',
+    0.0840,
+    ARRAY['bopp', 'transparente'],
+    ARRAY['1.14', '1.70'],
+    ARRAY['água'],
+    true
+  )
+ON CONFLICT DO NOTHING;
