@@ -862,6 +862,74 @@ Implementar via função de parse no frontend antes de enviar ao Zod: `value.rep
 * Download e processamento automático de links de sistemas de nuvem terceiros.  
 * Sugestão geométrica automatizada para reaproveitamento de retalhos (bin packing).
 
+---
+
+## **12\. Status de Implementação**
+
+*Atualizado em: 2026-04-20*
+
+### **Módulos Implementados ✅**
+
+| Módulo | Rota | Observações |
+| ----- | ----- | ----- |
+| **Autenticação (RBAC)** | `/login` | Login via Supabase Auth, 7 roles, sessão persistente, ProtectedRoute por role |
+| **Gestão de Clientes** | `/clients` | CRUD completo — cadastro, edição, perfil técnico (substratos, espessuras, tintas, máquinas) |
+| **Criação de OS** | `/orders/new` | Formulário em 4 blocos com validação em cascata (Zod + React Hook Form), nomenclatura automática. `network_filename` capturado do último estado do NomenclaturePanel (respeitando checkboxes do usuário). |
+| **Lista de OS / Pedidos** | `/orders` | Tabela com filtros, busca, paginação |
+| **Detalhe da OS** | `/orders/:id` | Ficha técnica completa, timeline de status, avanço de status por role, painel de problemas de arte |
+| **Editar OS** | Modal (OrderCard e Ficha de OS) | Campo "Canal" substituído por "Tipo de Serviço". Lógica condicional de Banda Larga replicada do Criar OS (Cilindro, Passo, Pistas, Repetições, Opcionais). |
+| **Fila de Produção** | `/production` | Kanban drag & drop + modo lista, HUD com KPIs, filtros, avanço de status por role |
+| **OrderCard — Ações Completas** | Fila de Produção | Botão `>` (avançar status, fundo verde), lápis (editar), dropdown `...`: Histórico (audit_logs), Voltar Processo (reverte para `tratamento`), Cancelar OS (com motivo), Registrar Refugo |
+| **Miniaturas no OrderCard** | Fila de Produção | Hover com zoom (`scale-110`) + ícone lupa + tooltip; clique abre lightbox; botão "Alterar" abaixo de cada imagem |
+| **Histórico de OS** | Modal no OrderCard | Exibe apenas alterações relevantes: etapa, responsável, urgência, retrabalho, observações, miniatura, cancelamento |
+| **Gate de Precificação** | Modal `PricingGateModal` | Obrigatório ao avançar `tratamento → fila_producao`. Auto-calcula `width × height × num_sets × price_per_cm2` com piso mínimo de **R$ 25,00/cor**. Salva em `order_colors` + `order_financials`. Dois destinos: **"Aguardar CDI"** (`fila_producao`) ou **"Enviar para Produção"** (direto para `producao`). |
+| **Taxa mínima por cor** | `PricingGateModal` | R$ 25,00 por cor. Clientes com `exempt_min_price = true` ficam isentos. Badge âmbar "mín. R$ 25,00/cor" exibido no modal para clientes não isentos. Configurável no cadastro de cliente (seção Financeiro). |
+| **Status "Aguardando Liberar CDI"** | `fila_producao` | Sala de espera da CDI — OS aguarda máquina ficar disponível. Timestamps gravados para KPIs de gargalo futuros. |
+| **Refugo (Scrap)** | Modal na Fila de Produção | Registrado no `OrderCard` quando `status = producao`; motivo, dimensões, perda financeira, flag de erro de arte |
+| **Problemas de Arte** | Painel na Ficha de OS | Criar/resolver problemas; trigger pausa/retoma a OS automaticamente |
+| **Comissões** | `/commissions` | KPIs, tabela com filtro de período; arte_finalista vê só as próprias; gestores veem todas + filtro de operador |
+| **Gestão de Usuários** | `/settings` | CRUD de usuários — criar (sysadmin), editar role/meta/comissão, redefinir senha, desativar |
+| **Relatórios / BI** | `/reports` | KPIs de volume, qualidade, retrabalhos, lead time, top clientes, canais de entrada |
+| **Dashboard** | `/dashboard` | Painel inicial personalizado por perfil; comissão, volume do dia, retrabalhos, fila de trabalho |
+
+---
+
+### **Convenções de UX implementadas**
+
+| Elemento | Padrão |
+| ----- | ----- |
+| **"Briefing"** | Substituído por **"Observações"** em todos os labels visíveis ao usuário |
+| **"Canal"** | Removido do `EditOrderModal`; substituído por **"Tipo de Serviço"** |
+| **Tipo de Serviço** | Fechamento de Arquivo, Montagem, Reposição, Regravação |
+
+---
+
+### **Triggers e Automações no Banco ✅**
+
+| Migration | O que faz |
+| ----- | ----- |
+| `014_commissions_trigger.sql` | Cria comissão automaticamente quando OS avança para `fila_producao` (reescrita sem DECLARE — bug do Supabase SQL editor) |
+| `024_fix_commission_trigger_security.sql` | Corrige RLS na tabela `commissions` (policy INSERT para `authenticated`) |
+| `025_order_specs_no_color_proof.sql` | Adiciona `no_color_proof BOOLEAN DEFAULT false` em `order_specs` — dispensa Prova de Cores por OS |
+| `026_clients_exempt_min_price.sql` | Adiciona `exempt_min_price BOOLEAN DEFAULT false` em `clients` — isenção da taxa mínima de R$ 25,00/cor |
+| Trigger `order_audit_log` | Registra histórico de alterações em `audit_logs`; `old_data` captura UPDATEs corretamente (`TG_OP IN ('UPDATE', 'DELETE')`) |
+| Trigger `order_issues` | Pausa a OS ao criar um problema de arte; retoma para `tratamento` ao resolver |
+| Trigger `scrap_records` | Reverte comissão do arte finalista quando `requires_art_fix = true` |
+
+---
+
+### **Pendente / Futuro 🔲**
+
+| Módulo | Prioridade | Observações |
+| ----- | ----- | ----- |
+| **Orçamentos** | Baixa | Marcado como opcional — pedidos entram direto como OS |
+| **Triagem de E-mail (Gmail API)** | Futura | Interface split-view com sincronização Gmail; alta complexidade |
+| **Checklist de Expedição** | Futura | Validação manual antes do despacho (cameron, micropontos, etc.) |
+| **Dashboard Arte Finalista** | Futura | KPIs individuais: comissão, cm² hoje, retrabalhos por erro, pendências pausadas |
+| **`is_internal_print`** | Futura | Campo "Impressão Interna" (opcional Banda Larga) — migration e UI pendentes |
+
+---
+
 ### **Resumo do nosso dia de trabalho:**
 
 Nós fizemos um trabalho excelente hoje. Mapeamos a espinha dorsal de todo o seu software:

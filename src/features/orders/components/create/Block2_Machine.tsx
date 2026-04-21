@@ -25,11 +25,24 @@ export function Block2_Machine({ isOpen, validated, enabled, profile, serviceTyp
   const [hasCameron, setHasCameron] = useState(false)
   const [isInternalPrint, setIsInternalPrint] = useState(false)
 
-  const { register, watch, setValue, getValues, formState: { isValid, errors } } = useForm<Block2Input>({
+  const { register, watch, setValue, getValues, reset, formState: { isValid, errors } } = useForm<Block2Input>({
     resolver: zodResolver(block2Schema),
     mode: 'onChange',
     defaultValues,
   })
+
+  useEffect(() => {
+    if (defaultValues && Object.keys(defaultValues).length > 0) {
+      reset(defaultValues, { keepDefaultValues: false })
+    }
+  }, [JSON.stringify(defaultValues)])
+
+  // Re-aplica após perfil do cliente carregar (selects precisam das opções antes de exibir o valor)
+  useEffect(() => {
+    if (defaultValues?.target_machine && profile?.machines?.length) {
+      reset(defaultValues, { keepDefaultValues: false })
+    }
+  }, [profile?.machines?.length])
 
   const bandType = watch('band_type')
   const selectedMachine = watch('target_machine')

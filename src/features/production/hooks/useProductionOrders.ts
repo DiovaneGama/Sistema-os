@@ -23,6 +23,7 @@ export interface ProductionOrder {
   production_ended_at: string | null
   dispatched_at: string | null
   // joins
+  client_id: string | null
   client_nickname: string | null
   client_name: string | null
   assigned_name: string | null
@@ -31,10 +32,18 @@ export interface ProductionOrder {
   target_machine: string | null
   band_type: string | null
   plate_thickness: number | null
+  service_name: string | null
+  network_filename: string | null
+  repetitions: number | null
+  machine_print_url: string | null
+  color_proof_url: string | null
+  no_color_proof: boolean
+  // colors
+  colors_count: number
+  first_color_name: string | null
 }
 
 export interface HUDStats {
-  filaArte: number
   emTratamento: number
   pausados: number
   filaProducao: number
@@ -76,7 +85,7 @@ async function fetchOrders(hoursWindow = 72): Promise<ProductionOrder[]> {
   const orderIds    = data.map((r: any) => r.id)
 
   // Busca paralela dos dados relacionados
-  const [clientsRes, profilesRes, specsRes] = await Promise.all([
+  const [clientsRes, profilesRes, specsRes, colorsRes] = await Promise.all([
     clientIds.length > 0
       ? (supabase as any).from('clients').select('id, nickname, company_name').in('id', clientIds)
       : Promise.resolve({ data: [], error: null }),
@@ -84,7 +93,10 @@ async function fetchOrders(hoursWindow = 72): Promise<ProductionOrder[]> {
       ? (supabase as any).from('profiles').select('id, full_name').in('id', profileIds)
       : Promise.resolve({ data: [], error: null }),
     orderIds.length > 0
-      ? (supabase as any).from('order_specs').select('order_id, target_machine, band_type, plate_thickness').in('order_id', orderIds)
+      ? (supabase as any).from('order_specs').select('order_id, service_name, target_machine, band_type, plate_thickness, network_filename, repetitions, machine_print_url, color_proof_url, no_color_proof').in('order_id', orderIds)
+      : Promise.resolve({ data: [], error: null }),
+    orderIds.length > 0
+      ? (supabase as any).from('order_colors').select('order_id, color_name, sort_order').in('order_id', orderIds).order('sort_order')
       : Promise.resolve({ data: [], error: null }),
   ])
 
@@ -92,6 +104,11 @@ async function fetchOrders(hoursWindow = 72): Promise<ProductionOrder[]> {
   const clientMap  = Object.fromEntries((clientsRes.data  ?? []).map((c: any) => [c.id, c]))
   const profileMap = Object.fromEntries((profilesRes.data ?? []).map((p: any) => [p.id, p]))
   const specMap    = Object.fromEntries((specsRes.data    ?? []).map((s: any) => [s.order_id, s]))
+  const colorsMap  = (colorsRes.data ?? []).reduce((acc: Record<string, any[]>, c: any) => {
+    if (!acc[c.order_id]) acc[c.order_id] = []
+    acc[c.order_id].push(c)
+    return acc
+  }, {})
 
   return data.map((row: any) => ({
     id:                    row.id,
@@ -112,6 +129,7 @@ async function fetchOrders(hoursWindow = 72): Promise<ProductionOrder[]> {
     production_started_at: row.production_started_at ?? null,
     production_ended_at:   row.production_ended_at   ?? null,
     dispatched_at:         row.dispatched_at         ?? null,
+    client_id:             row.client_id ?? null,
     client_nickname:       clientMap[row.client_id]?.nickname     ?? null,
     client_name:           clientMap[row.client_id]?.company_name ?? null,
     assigned_name:         profileMap[row.assigned_to]?.full_name ?? null,
@@ -119,6 +137,14 @@ async function fetchOrders(hoursWindow = 72): Promise<ProductionOrder[]> {
     target_machine:        specMap[row.id]?.target_machine  ?? null,
     band_type:             specMap[row.id]?.band_type        ?? null,
     plate_thickness:       specMap[row.id]?.plate_thickness  ?? null,
+    service_name:          specMap[row.id]?.service_name        ?? null,
+    network_filename:      specMap[row.id]?.network_filename   ?? null,
+    repetitions:           specMap[row.id]?.repetitions        ?? null,
+    machine_print_url:     specMap[row.id]?.machine_print_url  ?? null,
+    color_proof_url:       specMap[row.id]?.color_proof_url    ?? null,
+    no_color_proof:        specMap[row.id]?.no_color_proof     ?? false,
+    colors_count:          (colorsMap[row.id] ?? []).length,
+    first_color_name:      (colorsMap[row.id] ?? [])[0]?.color_name ?? null,
   }))
 }
 
@@ -136,7 +162,6 @@ function buildHUD(orders: ProductionOrder[]): HUDStats {
   }).length
 
   return {
-    filaArte:     counts['fila_arte']     ?? 0,
     emTratamento: counts['tratamento']    ?? 0,
     pausados:     counts['pausado']       ?? 0,
     filaProducao: counts['fila_producao'] ?? 0,
@@ -150,7 +175,7 @@ function buildHUD(orders: ProductionOrder[]): HUDStats {
 export function useProductionOrders() {
   const [orders,  setOrders]  = useState<ProductionOrder[]>([])
   const [hud,     setHud]     = useState<HUDStats>({
-    filaArte: 0, emTratamento: 0, pausados: 0,
+    emTratamento: 0, pausados: 0,
     filaProducao: 0, emProducao: 0, prontos: 0,
     atrasados: 0, totalAtivos: 0,
   })
@@ -244,5 +269,40 @@ export function useProductionOrders() {
     return () => { supabase.removeChannel(channel) }
   }, [load])
 
-  return { orders, hud, loading, error, advanceStatus, reorderInStatus, reload: load }
+  async function saveProductionPrint(
+    orderId: string,
+    field: 'machine_print_url' | 'color_proof_url' | 'thumbnail_url',
+    file: File
+  ): Promise<boolean> {
+    const ext  = file.type === 'image/png' ? 'png' : 'jpg'
+    const slug = field === 'thumbnail_url' ? 'service' : field === 'machine_print_url' ? 'machine' : 'proof'
+    const path = `production-prints/${orderId}_${slug}.${ext}`
+
+    const { error: upErr } = await (supabase as any).storage
+      .from('order-files')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) { console.error('[saveProductionPrint]', upErr.message); return false }
+
+    const { data: urlData } = (supabase as any).storage.from('order-files').getPublicUrl(path)
+    const url = urlData?.publicUrl ?? null
+    if (!url) return false
+
+    if (field === 'thumbnail_url') {
+      const { error } = await (supabase as any).from('orders').update({ thumbnail_url: url }).eq('id', orderId)
+      if (error) { console.error('[saveProductionPrint]', error.message); return false }
+    } else {
+      const { error } = await (supabase as any).from('order_specs').update({ [field]: url }).eq('order_id', orderId)
+      if (error) { console.error('[saveProductionPrint]', error.message); return false }
+    }
+
+    setOrders(prev => prev.map(o => {
+      if (o.id !== orderId) return o
+      if (field === 'thumbnail_url')     return { ...o, thumbnail_url: url }
+      if (field === 'machine_print_url') return { ...o, machine_print_url: url }
+      return { ...o, color_proof_url: url }
+    }))
+    return true
+  }
+
+  return { orders, hud, loading, error, advanceStatus, reorderInStatus, saveProductionPrint, reload: load }
 }

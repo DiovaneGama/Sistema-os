@@ -14,7 +14,9 @@ const TriagePage     = lazy(() => import('../features/triage/TriagePage').then(m
 const ProductionPage = lazy(() => import('../features/production/ProductionPage').then(m => ({ default: m.ProductionPage })))
 const ClientsPage    = lazy(() => import('../features/clients/ClientsPage').then(m => ({ default: m.ClientsPage })))
 const ReportsPage    = lazy(() => import('../features/reports/ReportsPage').then(m => ({ default: m.ReportsPage })))
-const SettingsPage    = lazy(() => import('../features/dashboard/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const SettingsPage       = lazy(() => import('../features/dashboard/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const OrderDetailPage    = lazy(() => import('../features/orders/OrderDetailPage').then(m => ({ default: m.OrderDetailPage })))
+const CommissionsPage    = lazy(() => import('../features/commissions/CommissionsPage').then(m => ({ default: m.CommissionsPage })))
 // import direto temporário para diagnóstico
 import { CreateOrderPage } from '../features/orders/CreateOrderPage'
 
@@ -66,6 +68,11 @@ export function AppRouter() {
                 </ErrorBoundary>
               } />
 
+
+              <Route path="/orders/:id" element={
+                <Suspense fallback={<PageLoader />}><OrderDetailPage /></Suspense>
+              } />
+
               <Route path="/triage" element={
                 <Suspense fallback={<PageLoader />}><TriagePage /></Suspense>
               } />
@@ -77,6 +84,13 @@ export function AppRouter() {
               <Route path="/clients" element={
                 <Suspense fallback={<PageLoader />}><ClientsPage /></Suspense>
               } />
+
+              {/* Comissões — arte_finalista + gestores */}
+              <Route element={<ProtectedRoute allowedRoles={['sysadmin', 'admin_master', 'gestor_pcp', 'arte_finalista']} />}>
+                <Route path="/commissions" element={
+                  <Suspense fallback={<PageLoader />}><CommissionsPage /></Suspense>
+                } />
+              </Route>
 
               {/* Relatórios — apenas gestores e acima */}
               <Route element={<ProtectedRoute allowedRoles={['sysadmin', 'admin_master', 'gestor_pcp']} />}>

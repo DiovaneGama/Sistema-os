@@ -63,7 +63,7 @@ export function EmailDetail({ email, onCreateOrder, onStatusChange }: Props) {
             )}
             {email.suggested_briefing && (
               <div className="flex gap-2 text-xs">
-                <span className="text-emerald-600 font-medium w-16 shrink-0">Briefing:</span>
+                <span className="text-emerald-600 font-medium w-16 shrink-0">Observações:</span>
                 <span className="text-slate-700">{email.suggested_briefing}</span>
               </div>
             )}

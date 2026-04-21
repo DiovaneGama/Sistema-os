@@ -92,7 +92,7 @@ export function CreateOrderFromEmailModal({ email, onClose, onCreated }: Props) 
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
           {/* Briefing */}
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Briefing</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Observações</label>
             <textarea
               rows={3}
               value={briefing}

@@ -8,12 +8,17 @@ interface Props {
   onChange: (id: string, client: ClientOption | null) => void
   onCreateNew?: () => void
   error?: string
+  initialLabel?: string
 }
 
-export function ClientSearchInput({ value, onChange, onCreateNew, error }: Props) {
+export function ClientSearchInput({ value, onChange, onCreateNew, error, initialLabel }: Props) {
   const { clients, loading, query, setQuery } = useClients()
   const [open, setOpen] = useState(false)
-  const [selectedLabel, setSelectedLabel] = useState('')
+  const [selectedLabel, setSelectedLabel] = useState(initialLabel ?? '')
+
+  useEffect(() => {
+    if (initialLabel && !selectedLabel) setSelectedLabel(initialLabel)
+  }, [initialLabel])
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside

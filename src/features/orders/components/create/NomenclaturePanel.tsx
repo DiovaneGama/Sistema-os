@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Copy, Check } from 'lucide-react'
 import {
   buildNetworkName,
@@ -19,6 +19,7 @@ interface Props {
   serviceName: string
   allBlocksValidated: boolean
   isInternalPrint?: boolean
+  onNetworkNameChange?: (name: string) => void
 }
 
 function CopyField({ label, value }: { label: string; value: string }) {
@@ -49,7 +50,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 export function NomenclaturePanel({
   orderNumber, date, nickname, substrate, lineature,
-  thickness, colors, serviceName, allBlocksValidated, isInternalPrint,
+  thickness, colors, serviceName, allBlocksValidated, isInternalPrint, onNetworkNameChange,
 }: Props) {
   const { user } = useAuth()
   const [inclSubstrate, setInclSubstrate] = useState(true)
@@ -59,6 +60,8 @@ export function NomenclaturePanel({
   const networkName = allBlocksValidated
     ? buildNetworkName({ date, nickname, substrate, lineature, thickness, colors, serviceName, userName, includeSubstrate: inclSubstrate, includeLineature: inclLineature, isInternalPrint })
     : ''
+
+  useEffect(() => { onNetworkNameChange?.(networkName) }, [networkName, onNetworkNameChange])
 
   const baseName = allBlocksValidated
     ? buildBaseFileName(serviceName, date)

@@ -3,6 +3,15 @@ import { supabase } from '../../../lib/supabase'
 import type { OrderStatus } from '../../../types/database'
 import type { NewOrderInput, OrderSpecsInput, OrderColorInput } from '../utils/schemas'
 
+const STATUS_TIMESTAMP: Partial<Record<OrderStatus, string>> = {
+  fila_arte:     'queued_at',
+  tratamento:    'treatment_started_at',
+  fila_producao: 'production_queued_at',
+  producao:      'production_started_at',
+  pronto:        'production_ended_at',
+  despachado:    'dispatched_at',
+}
+
 export interface OrderListItem {
   id: string
   order_number: string
@@ -13,6 +22,7 @@ export interface OrderListItem {
   briefing: string | null
   thumbnail_url: string | null
   created_at: string
+  service_name: string | null
   client_nickname: string | null
   client_name: string | null
   assigned_name: string | null
@@ -42,6 +52,7 @@ export interface OrderDetail {
 export interface OrderSpecDetail {
   id: string
   service_name: string | null
+  service_type: string | null
   substrate: string | null
   band_type: string | null
   target_machine: string | null
@@ -56,6 +67,7 @@ export interface OrderSpecDetail {
   rows: number | null
   has_conjugated_item: boolean
   is_pre_assembled: boolean
+  no_color_proof: boolean
   network_filename: string | null
   production_filename: string | null
   camerom_id: string | null
@@ -86,7 +98,7 @@ export function useOrdersList() {
     try {
       const { data, error } = await (supabase as any)
         .from('orders')
-        .select('id, order_number, status, channel, is_urgent, is_rework, briefing, thumbnail_url, created_at, client_id, assigned_to')
+        .select('id, order_number, status, channel, is_urgent, is_rework, briefing, thumbnail_url, created_at, client_id, assigned_to, order_specs(service_name)')
         .order('created_at', { ascending: false })
         .limit(200)
 
@@ -101,7 +113,7 @@ export function useOrdersList() {
           ? (supabase as any).from('clients').select('id, nickname, company_name').in('id', clientIds)
           : Promise.resolve({ data: [], error: null }),
         profileIds.length > 0
-          ? (supabase as any).from('profiles').select('id, full_name').in('id', profileIds)
+          ? (supabase as any).from('profiles').select('id, full_name, username').in('id', profileIds)
           : Promise.resolve({ data: [], error: null }),
       ])
 
@@ -118,9 +130,10 @@ export function useOrdersList() {
         briefing: row.briefing ?? null,
         thumbnail_url: row.thumbnail_url ?? null,
         created_at: row.created_at,
+        service_name: row.order_specs?.service_name ?? null,
         client_nickname: clientMap[row.client_id]?.nickname ?? null,
         client_name: clientMap[row.client_id]?.company_name ?? null,
-        assigned_name: profileMap[row.assigned_to]?.full_name ?? null,
+        assigned_name: profileMap[row.assigned_to]?.username ?? profileMap[row.assigned_to]?.full_name ?? null,
       })))
     } catch (e: any) {
       setError(e?.message ?? 'Erro ao carregar pedidos')
@@ -273,7 +286,7 @@ export function useOrderMutations() {
         color_name: c.color_name,
         width_cm: c.width_cm,
         height_cm: c.height_cm,
-        area_cm2: area,
+        // area_cm2 omitido: coluna GENERATED ALWAYS AS no banco — calculada automaticamente
         num_sets: c.num_sets,
         price,
         sort_order: i,
@@ -285,5 +298,134 @@ export function useOrderMutations() {
     return true
   }
 
-  return { createOrder, saveSpecs, saveNomenclature, replaceColors }
+  async function updateStatus(
+    orderId: string,
+    nextStatus: OrderStatus,
+    assignedTo?: string
+  ): Promise<{ ok: boolean; error?: string }> {
+    const update: Record<string, unknown> = {
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+    }
+    const tsField = STATUS_TIMESTAMP[nextStatus]
+    if (tsField) update[tsField] = new Date().toISOString()
+    if (nextStatus === 'tratamento' && assignedTo) update['assigned_to'] = assignedTo
+    if (nextStatus === 'fila_producao') update['treatment_ended_at'] = new Date().toISOString()
+
+    const { error } = await (supabase as any).from('orders').update(update).eq('id', orderId)
+    if (error) return { ok: false, error: error.message }
+
+    // Ao entrar em tratamento, aplica o código do operador no Nº OS
+    if (nextStatus === 'tratamento' && assignedTo) {
+      await (supabase as any).rpc('apply_operator_order_number', {
+        p_order_id:    orderId,
+        p_operator_id: assignedTo,
+      })
+    }
+
+    return { ok: true }
+  }
+
+  async function cancelOrder(
+    orderId: string,
+    motivo: string
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { error } = await (supabase as any)
+      .from('orders')
+      .update({
+        status: 'cancelado',
+        cancellation_reason: motivo,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }
+
+  async function updateOrderFields(
+    orderId: string,
+    fields: {
+      briefing?: string | null
+      is_urgent?: boolean
+      is_rework?: boolean
+      channel?: string
+      thumbnail_url?: string | null
+      client_id?: string | null
+    }
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { error } = await (supabase as any)
+      .from('orders')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }
+
+  async function updateSpecFields(
+    orderId: string,
+    fields: Partial<{
+      service_name: string | null
+      service_type: string | null
+      target_machine: string | null
+      substrate: string | null
+      band_type: string | null
+      plate_thickness: number | null
+      lineature: number | null
+      print_type: string | null
+      cylinder_diameter: number | null
+      gear_z: number | null
+      distortion_pct: number | null
+      repetitions: number | null
+      rows: number | null
+      exit_direction: string | null
+      cilindro_mm: number | null
+      passo_larga_mm: number | null
+      pistas_larga: number | null
+      repeticoes_larga: number | null
+      has_cameron: boolean
+      has_conjugated: boolean
+      assembly_type: string | null
+      no_color_proof: boolean
+    }>
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { error } = await (supabase as any)
+      .from('order_specs')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('order_id', orderId)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }
+
+  async function saveDraft(
+    draftId: string | null,
+    fields: Partial<{ client_id: string | null; channel: string; is_urgent: boolean; is_rework: boolean; briefing: string | null; file_path: string | null }>,
+    profileId: string
+  ): Promise<string | null> {
+    if (draftId) {
+      await (supabase as any).from('orders').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', draftId)
+      return draftId
+    }
+    const { data, error } = await (supabase as any)
+      .from('orders')
+      .insert({ ...fields, status: 'rascunho', created_by: profileId })
+      .select('id')
+      .single()
+    if (error) { console.error('[saveDraft]', error.message); return null }
+    return data.id
+  }
+
+  async function promoteDraft(draftId: string): Promise<string | null> {
+    const { error } = await (supabase as any)
+      .from('orders')
+      .update({ status: 'fila_arte', queued_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', draftId)
+    if (error) { console.error('[promoteDraft]', error.message); return null }
+    return draftId
+  }
+
+  async function discardDraft(draftId: string): Promise<void> {
+    await (supabase as any).from('orders').delete().eq('id', draftId)
+  }
+
+  return { createOrder, saveSpecs, saveNomenclature, replaceColors, updateStatus, cancelOrder, updateOrderFields, updateSpecFields, saveDraft, promoteDraft, discardDraft }
 }

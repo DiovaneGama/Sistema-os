@@ -15,6 +15,7 @@ export interface ProfileItem {
   role: UserRole
   daily_os_goal: number
   commission_rate: number
+  operator_code: number | null
   active: boolean
   created_at: string
 }
@@ -58,7 +59,7 @@ export function useSettings() {
 
   async function updateProfile(
     id: string,
-    fields: Partial<Pick<ProfileItem, 'role' | 'daily_os_goal' | 'commission_rate' | 'active' | 'username'>>
+    fields: Partial<Pick<ProfileItem, 'role' | 'daily_os_goal' | 'commission_rate' | 'active' | 'username' | 'operator_code'>>
   ): Promise<{ ok: boolean; error?: string }> {
     const { error: err } = await (supabase as any)
       .from('profiles')

@@ -30,7 +30,7 @@ interface RowProps {
   profile: ProfileItem
   currentUserId: string
   currentUserRole?: UserRole
-  onUpdate: (id: string, fields: Partial<Pick<ProfileItem, 'role' | 'daily_os_goal' | 'commission_rate' | 'active' | 'username'>>) => Promise<{ ok: boolean; error?: string }>
+  onUpdate: (id: string, fields: Partial<Pick<ProfileItem, 'role' | 'daily_os_goal' | 'commission_rate' | 'active' | 'username' | 'operator_code'>>) => Promise<{ ok: boolean; error?: string }>
   onChangePassword: (targetUserId: string, password: string, isSelf: boolean) => Promise<{ ok: boolean; error?: string }>
 }
 
@@ -41,21 +41,32 @@ function ProfileRow({ profile, currentUserId, currentUserRole, onUpdate, onChang
   const [goal, setGoal] = useState(String(profile.daily_os_goal))
   const [rate, setRate] = useState(String((profile.commission_rate * 100).toFixed(2)))
   const [username, setUsername] = useState(profile.username ?? '')
+  const [operatorCode, setOperatorCode] = useState(profile.operator_code != null ? String(profile.operator_code) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isSelf = profile.id === currentUserId
-  const canChangePassword = isSelf || currentUserRole === 'sysadmin'
+  const isSysadmin = currentUserRole === 'sysadmin'
+  const canChangePassword = isSelf || isSysadmin
 
   async function handleSave() {
     setSaving(true)
     setError(null)
     const trimmed = username.trim().toLowerCase()
-    const result = await onUpdate(profile.id, {
+    const codeRaw = operatorCode.trim()
+    const codeNum = codeRaw !== '' ? parseInt(codeRaw) : null
+    if (codeRaw !== '' && (isNaN(codeNum!) || codeNum! < 1 || codeNum! > 9999)) {
+      setError('Código do operador deve ser um número entre 1 e 9999.')
+      setSaving(false)
+      return
+    }
+    const fields: Parameters<typeof onUpdate>[1] = {
       role,
       daily_os_goal: parseInt(goal) || 10,
       commission_rate: (parseFloat(rate) || 0) / 100,
       username: trimmed || null,
-    })
+    }
+    if (isSysadmin) fields.operator_code = codeNum
+    const result = await onUpdate(profile.id, fields)
     setSaving(false)
     if (result.ok) setEditing(false)
     else setError(result.error ?? 'Erro ao salvar')
@@ -66,6 +77,7 @@ function ProfileRow({ profile, currentUserId, currentUserRole, onUpdate, onChang
     setGoal(String(profile.daily_os_goal))
     setRate(String((profile.commission_rate * 100).toFixed(2)))
     setUsername(profile.username ?? '')
+    setOperatorCode(profile.operator_code != null ? String(profile.operator_code) : '')
     setEditing(false)
     setError(null)
   }
@@ -145,6 +157,25 @@ function ProfileRow({ profile, currentUserId, currentUserRole, onUpdate, onChang
         )}
       </td>
 
+      {/* Cód. Operador — editável somente por sysadmin */}
+      <td className="px-4 py-3">
+        {editing && isSysadmin ? (
+          <input
+            type="number"
+            min={1}
+            max={9999}
+            value={operatorCode}
+            onChange={e => setOperatorCode(e.target.value)}
+            placeholder="—"
+            className="w-16 rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        ) : (
+          <span className={['text-sm font-mono', profile.operator_code != null ? 'font-semibold text-slate-800' : 'text-slate-300'].join(' ')}>
+            {profile.operator_code ?? '—'}
+          </span>
+        )}
+      </td>
+
       {/* Ações */}
       <td className="px-4 py-3 text-right">
         {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
@@ -204,7 +235,7 @@ interface Props {
   profiles: ProfileItem[]
   currentUserId: string
   currentUserRole?: UserRole
-  onUpdate: (id: string, fields: Partial<Pick<ProfileItem, 'role' | 'daily_os_goal' | 'commission_rate' | 'active' | 'username'>>) => Promise<{ ok: boolean; error?: string }>
+  onUpdate: (id: string, fields: Partial<Pick<ProfileItem, 'role' | 'daily_os_goal' | 'commission_rate' | 'active' | 'username' | 'operator_code'>>) => Promise<{ ok: boolean; error?: string }>
   onCreate: (data: { full_name: string; username: string; password: string; role: UserRole; daily_os_goal: number; commission_rate: number }) => Promise<{ ok: boolean; error?: string }>
   onChangePassword: (targetUserId: string, password: string, isSelf: boolean) => Promise<{ ok: boolean; error?: string }>
 }
@@ -241,7 +272,7 @@ export function UsersPanel({ profiles, currentUserId, currentUserRole, onUpdate,
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {['Usuário', 'Login', 'Papel', 'Meta diária', 'Comissão', ''].map(h => (
+              {['Usuário', 'Login', 'Papel', 'Meta diária', 'Comissão', 'Cód. Op.', ''].map(h => (
                 <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>

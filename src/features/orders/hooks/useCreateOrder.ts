@@ -121,6 +121,7 @@ export async function saveCreateOrder(input: {
     distortion_pct: number  // = passo calculado (desenvolvimento - reducao)
   }
   thumbnail_file?: File | null
+  network_filename?: string
 }): Promise<{ ok: boolean; orderId?: string; error?: string }> {
   try {
     // 1. Criar order
@@ -192,6 +193,16 @@ export async function saveCreateOrder(input: {
       }, { onConflict: 'order_id' })
 
     if (specErr) return { ok: false, error: specErr.message }
+
+    // 3b. Salvar network_filename — usa o valor já computado pelo NomenclaturePanel se disponível
+    if (input.network_filename) {
+      try {
+        await (supabase as any)
+          .from('order_specs')
+          .update({ network_filename: input.network_filename })
+          .eq('order_id', orderId)
+      } catch (_) { /* best-effort */ }
+    }
 
     // 4. Salvar cores
     if (input.colors.length > 0) {
@@ -295,22 +306,14 @@ export function buildColorsString(colors: string[]): string {
 }
 
 export function useNextOrderNumber(): string {
-  const [num, setNum] = useState('')
+  const [num, setNum] = useState('...')
   const load = useCallback(async () => {
-    const today = new Date()
-    const dd = String(today.getDate()).padStart(2, '0')
-    const mm = String(today.getMonth() + 1).padStart(2, '0')
-    const yyyy = today.getFullYear()
-    const prefix = `${dd}${mm}${yyyy}`
-    const { data } = await (supabase as any)
+    const { count } = await (supabase as any)
       .from('orders')
-      .select('order_number')
-      .like('order_number', `${prefix}%`)
-      .order('order_number', { ascending: false })
-      .limit(1)
-    const last = data?.[0]?.order_number ?? null
-    const seq = last ? parseInt(last.slice(-3)) + 1 : 1
-    setNum(`${prefix}${String(seq).padStart(3, '0')}`)
+      .select('*', { count: 'exact', head: true })
+      .neq('status', 'rascunho')
+    const seq = (count ?? 0) + 1
+    setNum(String(seq).padStart(3, '0'))
   }, [])
   useEffect(() => { load() }, [load])
   return num

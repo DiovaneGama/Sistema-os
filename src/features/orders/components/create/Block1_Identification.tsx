@@ -16,6 +16,7 @@ interface Props {
   validated: boolean
   enabled: boolean
   defaultValues?: Partial<Block1Input>
+  initialClientLabel?: string
   thumbnail: string | null
   onToggle: () => void
   onThumbnailChange: (file: File | null, preview: string | null) => void
@@ -23,7 +24,7 @@ interface Props {
 }
 
 export function Block1_Identification({
-  isOpen, validated, enabled, defaultValues, thumbnail,
+  isOpen, validated, enabled, defaultValues, initialClientLabel, thumbnail,
   onToggle, onThumbnailChange, onValidated,
 }: Props) {
   const { user } = useAuth()
@@ -32,15 +33,30 @@ export function Block1_Identification({
   const [uploadErr, setUploadErr] = useState<string | null>(null)
   const validatedRef = useRef(false)
 
-  const { register, watch, setValue, getValues, trigger, formState: { isValid, errors } } = useForm<Block1Input>({
+  const { register, watch, setValue, getValues, trigger, reset, formState: { isValid, errors } } = useForm<Block1Input>({
     resolver: zodResolver(block1Schema),
     mode: 'onBlur',
     defaultValues: { operator_id: user?.id, ...defaultValues },
   })
 
+  // Re-aplica defaultValues quando chegam após o mount (draft restaurado)
+  useEffect(() => {
+    if (defaultValues && Object.keys(defaultValues).length > 0) {
+      reset({ operator_id: user?.id, ...defaultValues })
+    }
+  }, [JSON.stringify(defaultValues)])
+
   const clientId = watch('client_id')
   const serviceType = watch('service_type')
   const { profile } = useClientProfile(clientId ?? null)
+
+  // Re-aplica unit salvo quando as opções do cliente carregam
+  useEffect(() => {
+    const savedUnit = defaultValues?.unit
+    if (savedUnit && profile?.units?.includes(savedUnit)) {
+      setValue('unit', savedUnit, { shouldValidate: true })
+    }
+  }, [profile?.units])
 
   // Primeira validação: auto-avança
   useEffect(() => {
@@ -136,6 +152,7 @@ export function Block1_Identification({
                   onChange={(id, _client) => handleClientChange(id)}
                   onCreateNew={() => setShowClientModal(true)}
                   error={errors.client_id?.message}
+                  initialLabel={initialClientLabel}
                 />
               </div>
               <div>

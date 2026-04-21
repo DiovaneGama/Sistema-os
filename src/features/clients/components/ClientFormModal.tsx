@@ -4,11 +4,11 @@ import { supabase } from '../../../lib/supabase'
 import type { Client, ClientMachineConfig } from '../../../types/database'
 import type { ClientInput } from '../hooks/useClientsFull'
 
-const SUBSTRATE_OPTIONS = ['bopp', 'metalizado', 'transparente', 'couche', 'pvc', 'poliéster', 'nylon']
-const THICKNESS_OPTIONS = ['1.14', '1.70', '2.54', '2.84', '3.94']
+const SUBSTRATE_OPTIONS = ['Metalizado', 'Transparente', 'Perolado', 'Couche', 'Leitoso', 'PET', 'PP', 'PE', 'BOPP', 'Rafia', 'Craft', 'Térmico']
+const THICKNESS_OPTIONS = ['1.14', '1.70', '2.84']
 const INK_OPTIONS = ['água', 'solvente', 'uv', 'flexo']
 const BAND_OPTIONS = ['estreita', 'larga']
-const LINEATURE_OPTIONS = [36, 42, 48, 54, 60]
+const LINEATURE_OPTIONS = [16, 27, 30, 44, 51, 54, 60, 63]
 
 interface Props {
   client?: Client | null
@@ -26,6 +26,7 @@ const empty: ClientInput = {
   email: null,
   phone: null,
   price_per_cm2: null,
+  exempt_min_price: false,
   substrates: [],
   plate_thicknesses: [],
   ink_types: [],
@@ -44,6 +45,7 @@ function toInput(c: Client): ClientInput {
     email: c.email,
     phone: c.phone,
     price_per_cm2: c.price_per_cm2,
+    exempt_min_price: c.exempt_min_price ?? false,
     substrates: c.substrates ?? [],
     plate_thicknesses: c.plate_thicknesses ?? [],
     ink_types: c.ink_types ?? [],
@@ -82,14 +84,17 @@ function CheckGroup({ label, options, selected, onChange }: {
 }
 
 // ── Subcomponente: entrada de unidades ────────────────────────────────────────
-function UnitsInput({ values, onChange }: { values: string[]; onChange: (v: string[]) => void }) {
-  const [input, setInput] = useState('')
-
-  function add() {
-    const trimmed = input.trim()
+function UnitsInput({ values, onChange, pendingInput, onPendingChange }: {
+  values: string[]
+  onChange: (v: string[]) => void
+  pendingInput: string
+  onPendingChange: (v: string) => void
+}) {
+  function add(text = pendingInput) {
+    const trimmed = text.trim()
     if (!trimmed || values.includes(trimmed)) return
     onChange([...values, trimmed])
-    setInput('')
+    onPendingChange('')
   }
 
   return (
@@ -97,13 +102,13 @@ function UnitsInput({ values, onChange }: { values: string[]; onChange: (v: stri
       <div className="flex gap-2">
         <input
           type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
+          value={pendingInput}
+          onChange={e => onPendingChange(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
           placeholder="Ex: São Paulo, Campinas…"
           className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
-        <button type="button" onClick={add} disabled={!input.trim()}
+        <button type="button" onClick={() => add()} disabled={!pendingInput.trim()}
           className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">
           <Plus className="h-4 w-4" />
         </button>
@@ -257,6 +262,7 @@ export function ClientFormModal({ client, onClose, onSave }: Props) {
   const [form, setForm] = useState<ClientInput>(client ? toInput(client) : empty)
   const [saving, setSaving] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  const [unitInput, setUnitInput] = useState('')
   const [dupName, setDupName] = useState<DupState>('idle')
   const [dupNick, setDupNick] = useState<DupState>('idle')
   const nameTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -267,6 +273,7 @@ export function ClientFormModal({ client, onClose, onSave }: Props) {
     setServerError(null)
     setDupName('idle')
     setDupNick('idle')
+    setUnitInput('')
   }, [client])
 
   function set<K extends keyof ClientInput>(key: K, value: ClientInput[K]) {
@@ -319,7 +326,11 @@ export function ClientFormModal({ client, onClose, onSave }: Props) {
     setSaving(true)
     setServerError(null)
     try {
-      const result = await onSave(form)
+      const pendingUnit = unitInput.trim()
+      const finalForm = pendingUnit && !(form.units ?? []).includes(pendingUnit)
+        ? { ...form, units: [...(form.units ?? []), pendingUnit] }
+        : form
+      const result = await onSave(finalForm)
       if (result.ok) {
         onClose()
       } else {
@@ -392,6 +403,8 @@ export function ClientFormModal({ client, onClose, onSave }: Props) {
                 <UnitsInput
                   values={form.units ?? []}
                   onChange={v => set('units', v)}
+                  pendingInput={unitInput}
+                  onPendingChange={setUnitInput}
                 />
               </div>
             </div>
@@ -432,13 +445,15 @@ export function ClientFormModal({ client, onClose, onSave }: Props) {
                 placeholder="Ex: 0.0850"
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
-          </div>
-
-          {/* Perfil Técnico */}
-          <div className="space-y-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Perfil Técnico</p>
-            <CheckGroup label="Tipos de tinta" options={INK_OPTIONS}
-              selected={form.ink_types} onChange={v => set('ink_types', v)} />
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.exempt_min_price ?? false}
+                onChange={e => set('exempt_min_price', e.target.checked)}
+                className="accent-amber-500 h-3.5 w-3.5"
+              />
+              <span className="text-xs text-slate-600">Isento da taxa mínima de R$ 25,00 por cor</span>
+            </label>
           </div>
 
           {/* Máquinas */}

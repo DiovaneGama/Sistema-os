@@ -34,9 +34,10 @@ export function useRole() {
     editCommissions:   hasRole('admin_master'),
     viewOwnCommission: !!role && role !== 'sysadmin',
     manageUsers:       isExactRole('sysadmin'),
+    manageClients:       hasRole('arte_finalista'),
     advanceToProduction: hasRole('arte_finalista'),
     advanceToDispatched: hasRole('clicherista') || hasRole('gestor_pcp'),
-    markScrap:         isExactRole('clicherista') || hasRole('gestor_pcp'),
+    markScrap:           isExactRole('clicherista') || hasRole('gestor_pcp'),
   }
 
   function isAtLeast(requiredRole: UserRole): boolean {

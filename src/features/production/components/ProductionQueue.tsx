@@ -21,13 +21,37 @@ import { OrderCard } from './OrderCard'
 import { PIPELINE_GROUPS, STATUS_LABELS } from '../utils/statusConfig'
 import { Package } from 'lucide-react'
 
+// ── Ordenação por prioridade ─────────────────────────────────────────────────
+
+function timeInQueueMs(o: ProductionOrder): number {
+  const ref = o.production_started_at ?? o.production_queued_at ??
+    o.treatment_started_at ?? o.queued_at ?? o.created_at
+  return Date.now() - new Date(ref).getTime()
+}
+
+function sortByPriority(a: ProductionOrder, b: ProductionOrder): number {
+  // 1. Urgentes
+  if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
+  // 2. Pausados
+  if ((a.status === 'pausado') !== (b.status === 'pausado'))
+    return a.status === 'pausado' ? -1 : 1
+  // 3. Atrasados (> 4h)
+  const aLate = timeInQueueMs(a) > 4 * 3_600_000
+  const bLate = timeInQueueMs(b) > 4 * 3_600_000
+  if (aLate !== bLate) return aLate ? -1 : 1
+  // 4. Maior tempo em fila primeiro
+  return timeInQueueMs(b) - timeInQueueMs(a)
+}
+
 // ── Item arrastável ──────────────────────────────────────────────────────────
 function SortableOrderCard({
-  order, role, onAdvance,
+  order, role, currentProfileId, onAdvance,
 }: {
   order: ProductionOrder
   role: UserRole
+  currentProfileId: string
   onAdvance: (id: string) => void
+  viewMode?: 'columns' | 'list'
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: order.id })
@@ -43,7 +67,10 @@ function SortableOrderCard({
       <OrderCard
         order={order}
         role={role}
+        currentProfileId={currentProfileId}
         onAdvance={onAdvance}
+        onSavePrint={async () => false}
+        viewMode="columns"
         isDragging={isDragging}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
@@ -57,6 +84,7 @@ function GroupColumn({
   statuses,
   orders,
   role,
+  currentProfileId,
   onAdvance,
   onReorder,
 }: {
@@ -64,6 +92,7 @@ function GroupColumn({
   statuses: OrderStatus[]
   orders: ProductionOrder[]
   role: UserRole
+  currentProfileId: string
   onAdvance: (id: string) => void
   onReorder: (reordered: { id: string; sort_order: number }[]) => void
 }) {
@@ -74,12 +103,7 @@ function GroupColumn({
 
   const groupOrders = orders
     .filter(o => statuses.includes(o.status))
-    .sort((a, b) => {
-      // Urgentes e retrabalhos primeiro
-      if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
-      if (a.is_rework !== b.is_rework) return a.is_rework ? -1 : 1
-      return (a.sort_order - b.sort_order) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    })
+    .sort(sortByPriority)
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -124,6 +148,7 @@ function GroupColumn({
                   key={order.id}
                   order={order}
                   role={role}
+                  currentProfileId={currentProfileId}
                   onAdvance={onAdvance}
                 />
               ))}
@@ -139,12 +164,15 @@ function GroupColumn({
 interface Props {
   orders: ProductionOrder[]
   role: UserRole
+  currentProfileId: string
   onAdvance: (orderId: string) => void
   onReorder: (reordered: { id: string; sort_order: number }[]) => void
+  onSavePrint: (orderId: string, field: 'thumbnail_url' | 'machine_print_url' | 'color_proof_url', file: File) => Promise<boolean>
+  onReload: () => void
   viewMode: 'columns' | 'list'
 }
 
-export function ProductionQueue({ orders, role, onAdvance, onReorder, viewMode }: Props) {
+export function ProductionQueue({ orders, role, currentProfileId, onAdvance, onReorder, onSavePrint, onReload, viewMode }: Props) {
   if (viewMode === 'columns') {
     return (
       <div className="flex gap-4 overflow-x-auto pb-2">
@@ -155,6 +183,7 @@ export function ProductionQueue({ orders, role, onAdvance, onReorder, viewMode }
             statuses={group.statuses}
             orders={orders}
             role={role}
+            currentProfileId={currentProfileId}
             onAdvance={onAdvance}
             onReorder={onReorder}
           />
@@ -164,11 +193,7 @@ export function ProductionQueue({ orders, role, onAdvance, onReorder, viewMode }
   }
 
   // Modo lista: todos juntos, ordenados
-  const sorted = [...orders].sort((a, b) => {
-    if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
-    if (a.is_rework !== b.is_rework) return a.is_rework ? -1 : 1
-    return (a.sort_order - b.sort_order) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  })
+  const sorted = [...orders].sort(sortByPriority)
 
   if (sorted.length === 0) {
     return (
@@ -187,7 +212,11 @@ export function ProductionQueue({ orders, role, onAdvance, onReorder, viewMode }
           key={order.id}
           order={order}
           role={role}
+          currentProfileId={currentProfileId}
           onAdvance={onAdvance}
+          onSavePrint={onSavePrint}
+          onReload={onReload}
+          viewMode="list"
         />
       ))}
     </div>

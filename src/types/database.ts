@@ -75,6 +75,7 @@ export interface Client {
   email: string | null
   phone: string | null
   price_per_cm2: number | null
+  exempt_min_price: boolean
   substrates: string[]
   plate_thicknesses: string[]
   ink_types: string[]

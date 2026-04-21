@@ -6,19 +6,22 @@ import { useProductionOrders } from './hooks/useProductionOrders'
 import { ProductionHUD } from './components/ProductionHUD'
 import { FiltersBar, type ProductionFilters } from './components/FiltersBar'
 import { ProductionQueue } from './components/ProductionQueue'
+import { PricingGateModal } from './components/PricingGateModal'
 import { getNextStatus } from './utils/statusConfig'
+import { supabase } from '../../lib/supabase'
 import type { OrderStatus } from '../../types/database'
 
 export function ProductionPage() {
   const { profile } = useAuth()
   const { role } = useRole()
-  const { orders, hud, loading, error, advanceStatus, reorderInStatus, reload } = useProductionOrders()
+  const { orders, hud, loading, error, advanceStatus, reorderInStatus, saveProductionPrint, reload } = useProductionOrders()
 
   const [filters, setFilters] = useState<ProductionFilters>({
     search: '', status: '', urgentOnly: false, reworkOnly: false,
   })
-  const [viewMode, setViewMode] = useState<'columns' | 'list'>('columns')
+  const [viewMode, setViewMode] = useState<'columns' | 'list'>('list')
   const [advancing, setAdvancing] = useState<string | null>(null)
+  const [pricingOrderId, setPricingOrderId] = useState<string | null>(null)
 
   // Filtra os pedidos conforme os filtros ativos
   const filteredOrders = useMemo(() => {
@@ -43,15 +46,49 @@ export function ProductionPage() {
 
   async function handleAdvance(orderId: string) {
     if (!role || !profile) return
-    const order = orders.find(o => o.id === orderId)
-    if (!order) return
 
-    const next = getNextStatus(order.status, role)
+    // Busca status atual direto do banco para evitar estado stale
+    const { data: fresh } = await (supabase as any)
+      .from('orders')
+      .select('status')
+      .eq('id', orderId)
+      .single()
+    if (!fresh) return
+
+    const currentStatus = fresh.status as OrderStatus
+    const next = getNextStatus(currentStatus, role)
     if (!next) return
 
+    // Gatilho de precificação: exige preencher valores antes de liberar para CDI
+    if (currentStatus === 'tratamento' && next === 'fila_producao') {
+      setPricingOrderId(orderId)
+      return
+    }
+
     setAdvancing(orderId)
-    await advanceStatus(orderId, next as OrderStatus, profile.id)
+    await advanceStatus(orderId, next, profile.id)
     setAdvancing(null)
+    reload()
+  }
+
+  async function handlePricingConfirm(orderId: string) {
+    await advanceStatus(orderId, 'fila_producao' as OrderStatus, profile?.id)
+    setPricingOrderId(null)
+    reload()
+  }
+
+  async function handlePricingConfirmDirect(orderId: string) {
+    const now = new Date().toISOString()
+    // Update único com todos os timestamps — evita race condition com trigger de comissão
+    await (supabase as any).from('orders').update({
+      status:                'producao',
+      treatment_ended_at:    now,
+      production_queued_at:  now,
+      production_started_at: now,
+      updated_at:            now,
+    }).eq('id', orderId)
+    setPricingOrderId(null)
+    reload()
   }
 
   return (
@@ -141,8 +178,11 @@ export function ProductionPage() {
           <ProductionQueue
             orders={filteredOrders}
             role={role ?? 'triador'}
+            currentProfileId={profile?.id ?? ''}
             onAdvance={handleAdvance}
             onReorder={reorderInStatus}
+            onSavePrint={saveProductionPrint}
+            onReload={reload}
             viewMode={viewMode}
           />
         )}
@@ -155,6 +195,19 @@ export function ProductionPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de precificação */}
+      {pricingOrderId && (() => {
+        const order = orders.find(o => o.id === pricingOrderId)
+        return order ? (
+          <PricingGateModal
+            order={order}
+            onClose={() => setPricingOrderId(null)}
+            onConfirm={handlePricingConfirm}
+            onConfirmDirect={handlePricingConfirmDirect}
+          />
+        ) : null
+      })()}
     </div>
   )
 }

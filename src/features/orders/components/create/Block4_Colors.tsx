@@ -11,7 +11,7 @@ interface Props {
   colors: string[]
   onToggle: () => void
   onChange: (colors: string[]) => void
-  onValidated: () => void
+  onValidated: (colors: string[]) => void
 }
 
 function ColorSwatch({ name, size = 14 }: { name: string; size?: number }) {
@@ -41,11 +41,11 @@ export function Block4_Colors({ isOpen, validated, enabled, colors, onToggle, on
   useEffect(() => {
     if (colors.length > 0 && !validatedRef.current) {
       validatedRef.current = true
-      onValidated()
+      onValidated(colors)
     } else if (colors.length === 0) {
       validatedRef.current = false
     }
-  }, [colors.length])
+  }, [colors])
 
   function toggle(color: string) {
     if (colors.includes(color)) {

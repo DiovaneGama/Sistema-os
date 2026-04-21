@@ -24,11 +24,24 @@ export function Block3_Cliche({ isOpen, validated, enabled, profile, selectedMac
   useEffect(() => { onValidatedRef.current = onValidated }, [onValidated])
   const [showTape, setShowTape] = useState(false)
 
-  const { register, watch, setValue, getValues, trigger, formState: { isValid, errors } } = useForm<Block3Input>({
+  const { register, watch, setValue, getValues, trigger, reset, formState: { isValid, errors } } = useForm<Block3Input>({
     resolver: zodResolver(block3Schema),
     mode: 'onChange',
     defaultValues,
   })
+
+  useEffect(() => {
+    if (defaultValues && Object.keys(defaultValues).length > 0) {
+      reset(defaultValues, { keepDefaultValues: false })
+    }
+  }, [JSON.stringify(defaultValues)])
+
+  // Re-aplica após máquina e perfil carregarem (selects de espessura/lineatura dependem deles)
+  useEffect(() => {
+    if (defaultValues?.plate_thickness && selectedMachine && profile?.machines?.length) {
+      reset(defaultValues, { keepDefaultValues: false })
+    }
+  }, [selectedMachine, profile?.machines?.length])
 
   const machine: ClientMachine | undefined = profile?.machines.find(m => m.name === selectedMachine)
   const lineatures: number[] = machine

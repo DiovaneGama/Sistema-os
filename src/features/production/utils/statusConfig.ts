@@ -6,7 +6,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   fila_arte:      'Fila Arte Final',
   tratamento:     'Em Tratamento',
   pausado:        'Pausado',
-  fila_producao:  'Fila Produção',
+  fila_producao:  'Aguardando Liberar CDI',
   producao:       'Em Produção',
   pronto:         'Pronto',
   faturamento:    'Faturamento',
@@ -32,7 +32,6 @@ export const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string; bord
 
 // ── Status visíveis na fila de produção (horizonte 72h) ─────────────────────
 export const PRODUCTION_PIPELINE: OrderStatus[] = [
-  'fila_arte',
   'tratamento',
   'pausado',
   'fila_producao',
@@ -42,7 +41,7 @@ export const PRODUCTION_PIPELINE: OrderStatus[] = [
 
 // ── Grupos visuais da fila ───────────────────────────────────────────────────
 export const PIPELINE_GROUPS: { label: string; statuses: OrderStatus[] }[] = [
-  { label: 'Arte Final',  statuses: ['fila_arte', 'tratamento', 'pausado'] },
+  { label: 'Arte Final',  statuses: ['tratamento', 'pausado'] },
   { label: 'Produção',    statuses: ['fila_producao', 'producao'] },
   { label: 'Prontos',     statuses: ['pronto'] },
 ]
@@ -55,9 +54,9 @@ export function getNextStatus(
   const transitions: Partial<Record<OrderStatus, { next: OrderStatus; roles: UserRole[] }>> = {
     fila_arte:     { next: 'tratamento',    roles: ['arte_finalista', 'gestor_pcp', 'admin_master', 'sysadmin'] },
     tratamento:    { next: 'fila_producao', roles: ['arte_finalista', 'gestor_pcp', 'admin_master', 'sysadmin'] },
-    fila_producao: { next: 'producao',      roles: ['clicherista',    'gestor_pcp', 'admin_master', 'sysadmin'] },
-    producao:      { next: 'pronto',        roles: ['clicherista',    'gestor_pcp', 'admin_master', 'sysadmin'] },
-    pronto:        { next: 'despachado',    roles: ['clicherista',    'gestor_pcp', 'admin_master', 'sysadmin'] },
+    fila_producao: { next: 'producao',      roles: ['arte_finalista', 'clicherista', 'gestor_pcp', 'admin_master', 'sysadmin'] },
+    producao:      { next: 'pronto',        roles: ['arte_finalista', 'clicherista', 'gestor_pcp', 'admin_master', 'sysadmin'] },
+    pronto:        { next: 'despachado',    roles: ['arte_finalista', 'clicherista', 'gestor_pcp', 'admin_master', 'sysadmin'] },
   }
   const t = transitions[current]
   if (!t) return null
@@ -70,7 +69,7 @@ export function getNextStatusLabel(current: OrderStatus, role: UserRole): string
   if (!next) return null
   const labels: Partial<Record<OrderStatus, string>> = {
     tratamento:    'Abrir para Tratamento',
-    fila_producao: 'Enviar para Produção',
+    fila_producao: 'Liberar para CDI',
     producao:      'Iniciar Produção',
     pronto:        'Marcar como Pronto',
     despachado:    'Confirmar Despacho',

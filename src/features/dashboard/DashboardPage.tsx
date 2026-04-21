@@ -33,7 +33,7 @@ export function DashboardPage() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-sm text-white hover:bg-emerald-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Novo Pedido
+            Criar OS
           </a>
         </div>
       </div>

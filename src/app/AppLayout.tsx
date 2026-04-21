@@ -9,6 +9,7 @@ import {
   LogOut,
   Factory,
   KeyRound,
+  DollarSign,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
@@ -32,12 +33,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard',  label: 'Dashboard',      icon: LayoutDashboard },
-  { to: '/triage',     label: 'Triagem de E-mail', icon: Mail },
-  { to: '/orders',     label: 'Fila de Pedidos', icon: ClipboardList },
-  { to: '/production', label: 'Produção',        icon: Factory },
-  { to: '/clients',    label: 'Clientes',        icon: Users },
-  { to: '/settings',   label: 'Configurações',   icon: Settings },
+  { to: '/dashboard',   label: 'Dashboard',       icon: LayoutDashboard },
+  { to: '/triage',      label: 'Triagem de E-mail', icon: Mail },
+  { to: '/orders',      label: 'Fila de OS', icon: ClipboardList },
+  { to: '/production',  label: 'Produção',         icon: Factory },
+  { to: '/clients',     label: 'Clientes',         icon: Users },
+  { to: '/commissions', label: 'Comissões',        icon: DollarSign },
+  { to: '/settings',    label: 'Configurações',    icon: Settings },
 ]
 
 export function AppLayout() {
@@ -52,8 +54,10 @@ export function AppLayout() {
   }
 
   // Filtra itens de navegação por permissão
+  const role = profile?.role
   const visibleNavItems = NAV_ITEMS.filter((item) => {
-    if (item.to === '/settings') return can.manageUsers || can.manageProduction
+    if (item.to === '/settings')    return can.manageUsers || can.manageProduction
+    if (item.to === '/commissions') return ['sysadmin','admin_master','gestor_pcp','arte_finalista'].includes(role ?? '')
     return true
   })
 

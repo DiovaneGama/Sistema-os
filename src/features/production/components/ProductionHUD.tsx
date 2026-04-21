@@ -34,14 +34,7 @@ export function ProductionHUD({ stats }: Props) {
   return (
     <div className="space-y-3">
       {/* Linha 1: pipeline principal */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <HUDCard
-          icon={Layers}
-          label="Fila Arte Final"
-          value={stats.filaArte}
-          color="bg-blue-50"
-          iconColor="text-blue-600"
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <HUDCard
           icon={Wand2}
           label="Em Tratamento"
@@ -59,7 +52,7 @@ export function ProductionHUD({ stats }: Props) {
         />
         <HUDCard
           icon={Layers}
-          label="Fila Produção"
+          label="Aguardando CDI"
           value={stats.filaProducao}
           color="bg-orange-50"
           iconColor="text-orange-600"
