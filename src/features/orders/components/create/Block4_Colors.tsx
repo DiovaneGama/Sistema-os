@@ -9,8 +9,10 @@ interface Props {
   validated: boolean
   enabled: boolean
   colors: string[]
+  noColorProof: boolean
   onToggle: () => void
   onChange: (colors: string[]) => void
+  onNoColorProofChange: (value: boolean) => void
   onValidated: (colors: string[]) => void
 }
 
@@ -33,7 +35,7 @@ function ColorSwatch({ name, size = 14 }: { name: string; size?: number }) {
   )
 }
 
-export function Block4_Colors({ isOpen, validated, enabled, colors, onToggle, onChange, onValidated }: Props) {
+export function Block4_Colors({ isOpen, validated, enabled, colors, noColorProof, onToggle, onChange, onNoColorProofChange, onValidated }: Props) {
   const [customInput, setCustomInput] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const validatedRef = useRef(false)
@@ -157,6 +159,20 @@ export function Block4_Colors({ isOpen, validated, enabled, colors, onToggle, on
         {colors.length === 0 && (
           <p className="text-xs text-slate-400">Selecione ao menos uma cor para avançar.</p>
         )}
+
+        {/* Opcionais */}
+        <div className="border-t border-slate-100 pt-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Opcionais</p>
+          <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={noColorProof}
+              onChange={e => onNoColorProofChange(e.target.checked)}
+              className="accent-emerald-600 h-3.5 w-3.5"
+            />
+            <span className="text-xs text-slate-600">Dispensa Prova de Cores</span>
+          </label>
+        </div>
       </div>
     </div>
   )

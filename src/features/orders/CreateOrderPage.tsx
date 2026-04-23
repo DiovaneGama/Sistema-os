@@ -32,6 +32,7 @@ export function CreateOrderPage() {
   const [block3, setBlock3] = useState<Block3Input | null>(null)
   const [colors, setColors] = useState<string[]>([])
   const [colorsValidated, setColorsValidated] = useState(false)
+  const [noColorProof, setNoColorProof] = useState(false)
   const [montage, setMontage] = useState<MontageValues | null>(null)
   const [networkFilename, setNetworkFilename] = useState<string>('')
 
@@ -130,12 +131,16 @@ export function CreateOrderPage() {
         setColors(names)
         setColorsValidated(true)
       }
+      if (specs?.no_color_proof) setNoColorProof(true)
 
       setDraftSaved(true)
       setLoadingDraft(false)
     }
     load()
   }, [profile?.id, authLoading])
+
+  const noColorProofRef = useRef(false)
+  useEffect(() => { noColorProofRef.current = noColorProof }, [noColorProof])
 
   async function saveDraftToDb(
     b1?: Block1Input | null,
@@ -185,6 +190,7 @@ export function CreateOrderPage() {
       lineature: parseFloat(b3.lineature),
       double_tape_mm: b3.double_tape_mm ? parseFloat(b3.double_tape_mm) : null,
     })
+    specData.no_color_proof = noColorProofRef.current
     await (supabase as any).from('order_specs').upsert(specData, { onConflict: 'order_id' })
 
     if (cols && cols.length > 0) {
@@ -280,8 +286,8 @@ export function CreateOrderPage() {
           }
         }
 
-        // 3. Finaliza specs (montagem + network_filename)
-        const specUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        // 3. Finaliza specs (montagem + network_filename + no_color_proof)
+        const specUpdate: Record<string, unknown> = { no_color_proof: noColorProof, updated_at: new Date().toISOString() }
         if (montage && block1.service_type === 'montagem') {
           Object.assign(specUpdate, {
             gear_z: montage.gear_z, pi_value: montage.pi_value, reduction_mm: montage.reduction_mm,
@@ -313,7 +319,7 @@ export function CreateOrderPage() {
         passo_larga_mm: block2.passo_larga_mm, pistas_larga: block2.pistas_larga,
         repeticoes_larga: block2.repeticoes_larga, has_cameron: block2.has_cameron,
         plate_thickness: block3.plate_thickness, lineature: block3.lineature,
-        double_tape_mm: block3.double_tape_mm, colors,
+        double_tape_mm: block3.double_tape_mm, colors, no_color_proof: noColorProof,
         montage: montage && block1.service_type === 'montagem' ? montage : undefined,
         thumbnail_file: thumbnail, network_filename: networkFilename || undefined,
       })
@@ -429,11 +435,17 @@ export function CreateOrderPage() {
             validated={colorsValidated}
             enabled={maxBlock >= 4}
             colors={colors}
+            noColorProof={noColorProof}
             onToggle={() => toggleBlock(4)}
             onChange={c => {
               setColors(c)
               if (c.length === 0) setColorsValidated(false)
               else if (colorsValidated) saveDraftToDb(block1, block2, block3, c)
+            }}
+            onNoColorProofChange={v => {
+              setNoColorProof(v)
+              noColorProofRef.current = v
+              if (colorsValidated) saveDraftToDb(block1, block2, block3, colors)
             }}
             onValidated={handleColorsValidated}
           />

@@ -108,6 +108,7 @@ export async function saveCreateOrder(input: {
   lineature: string
   double_tape_mm?: string
   colors: string[]
+  no_color_proof?: boolean
   montage?: {
     gear_z: number
     pi_value: number
@@ -189,6 +190,7 @@ export async function saveCreateOrder(input: {
         altura_faca_mm:    input.montage?.altura_faca ?? null,
         largura_faca_mm:   input.montage?.largura_faca ?? null,
         largura_material_mm: input.montage?.largura_material ?? null,
+        no_color_proof:  input.no_color_proof ?? false,
         updated_at:      new Date().toISOString(),
       }, { onConflict: 'order_id' })
 
