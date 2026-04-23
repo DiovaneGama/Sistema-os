@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, DollarSign, RefreshCw, Calculator } from 'lucide-react'
+import { X, DollarSign, RefreshCw, Calculator, Copy } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import type { ProductionOrder } from '../hooks/useProductionOrders'
 
@@ -121,6 +121,54 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
     })
   }
 
+  // Valida valor numérico não-negativo em BRL (aceita vírgula ou ponto como decimal)
+  function sanitizeDecimal(raw: string): string {
+    const normalized = raw.replace(',', '.')
+    if (normalized === '' || normalized === '-') return ''
+    const n = parseFloat(normalized)
+    if (isNaN(n) || n < 0) return ''
+    return raw
+  }
+
+  function handleDimensionChange(index: number, field: 'width_cm' | 'height_cm', raw: string) {
+    const sanitized = sanitizeDecimal(raw)
+    if (sanitized !== null) updateColor(index, field, raw.replace(',', '.'))
+  }
+
+  function handleSetsChange(index: number, raw: string) {
+    const n = parseInt(raw)
+    if (raw === '' || (!isNaN(n) && n >= 1)) updateColor(index, 'num_sets', raw)
+  }
+
+  function handlePriceChange(index: number, raw: string) {
+    const sanitized = sanitizeDecimal(raw)
+    if (sanitized !== null) updateColor(index, 'price', raw.replace(',', '.'))
+  }
+
+  // Replica largura, altura e jogos de uma linha para todas as demais (recalcula preços)
+  function replicateRow(sourceIndex: number) {
+    const src = colors[sourceIndex]
+    setColors(prev => prev.map((row, i) => {
+      if (i === sourceIndex) return row
+      const updated = {
+        ...row,
+        width_cm: src.width_cm,
+        height_cm: src.height_cm,
+        num_sets: src.num_sets,
+        manualPrice: false,
+      }
+      if (pricePerCm2) {
+        const w    = parseNum(src.width_cm)
+        const h    = parseNum(src.height_cm)
+        const sets = parseNum(src.num_sets) || 1
+        const area = w * h * sets
+        const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
+        updated.price = calc > 0 ? calc.toFixed(2) : ''
+      }
+      return updated
+    }))
+  }
+
   function resetPrice(index: number) {
     if (!pricePerCm2) return
     setColors(prev => {
@@ -154,7 +202,7 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
     setSaving(true)
     try {
       for (const c of colors) {
-        await (supabase as any)
+        const { error: colorErr } = await (supabase as any)
           .from('order_colors')
           .update({
             width_cm:  parseNum(c.width_cm)  || null,
@@ -163,9 +211,10 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
             price:     parseNum(c.price)     || null,
           })
           .eq('id', c.id)
+        if (colorErr) { alert('Erro ao salvar cor: ' + colorErr.message); setSaving(false); return }
       }
 
-      await (supabase as any)
+      const { error: finErr } = await (supabase as any)
         .from('order_financials')
         .upsert({
           order_id:       order.id,
@@ -174,8 +223,11 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
           total_price:    total,
           updated_at:     new Date().toISOString(),
         }, { onConflict: 'order_id' })
+      if (finErr) { alert('Erro ao salvar financeiro: ' + finErr.message); setSaving(false); return }
 
       await callback(order.id)
+    } catch (e: any) {
+      alert('Erro inesperado: ' + e.message)
     } finally {
       setSaving(false)
     }
@@ -227,7 +279,7 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    {['Cor', 'Largura (cm)', 'Altura (cm)', 'Área (cm²)', 'Jogos', 'Valor (R$)'].map(h => (
+                    {['Cor', 'Largura (cm)', 'Altura (cm)', 'Área (cm²)', 'Jogos', 'Valor (R$)', ''].map(h => (
                       <th key={h} className="pb-2 text-xs font-semibold text-slate-500 text-center first:text-left">{h}</th>
                     ))}
                   </tr>
@@ -238,6 +290,7 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                     const h    = parseNum(c.height_cm)
                     const sets = parseNum(c.num_sets) || 1
                     const area = w * h * sets
+                    const canReplicate = colors.length > 1 && (w > 0 || h > 0 || sets > 1)
                     return (
                       <tr key={c.id}>
                         <td className="py-2 pr-3 font-medium text-slate-700 whitespace-nowrap">{c.color_name}</td>
@@ -245,7 +298,8 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                           <input
                             type="number" min={0} step={0.01}
                             value={c.width_cm}
-                            onChange={e => updateColor(i, 'width_cm', e.target.value)}
+                            onChange={e => handleDimensionChange(i, 'width_cm', e.target.value)}
+                            onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
                             className={INPUT}
                             placeholder="0.00"
                           />
@@ -254,7 +308,8 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                           <input
                             type="number" min={0} step={0.01}
                             value={c.height_cm}
-                            onChange={e => updateColor(i, 'height_cm', e.target.value)}
+                            onChange={e => handleDimensionChange(i, 'height_cm', e.target.value)}
+                            onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
                             className={INPUT}
                             placeholder="0.00"
                           />
@@ -266,7 +321,8 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                           <input
                             type="number" min={1} step={1}
                             value={c.num_sets}
-                            onChange={e => updateColor(i, 'num_sets', e.target.value)}
+                            onChange={e => handleSetsChange(i, e.target.value)}
+                            onKeyDown={e => { if (e.key === '-' || e.key === '.') e.preventDefault() }}
                             className={INPUT}
                           />
                         </td>
@@ -275,7 +331,8 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                             <input
                               type="number" min={0} step={0.01}
                               value={c.price}
-                              onChange={e => updateColor(i, 'price', e.target.value)}
+                              onChange={e => handlePriceChange(i, e.target.value)}
+                              onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
                               className={[INPUT, c.manualPrice ? 'border-amber-300 bg-amber-50' : ''].join(' ')}
                               placeholder="0.00"
                             />
@@ -290,6 +347,19 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                             )}
                           </div>
                         </td>
+                        <td className="py-2 pl-2">
+                          {canReplicate && (
+                            <button
+                              type="button"
+                              onClick={() => replicateRow(i)}
+                              title="Replicar dimensões desta cor nas demais"
+                              className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-500 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors whitespace-nowrap"
+                            >
+                              <Copy className="h-3 w-3" />
+                              Replicar
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
@@ -302,7 +372,11 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                 <input
                   type="number" min={0} step={0.01}
                   value={assemblyPrice}
-                  onChange={e => setAssemblyPrice(e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value.replace(',', '.')
+                    if (v === '' || (parseFloat(v) >= 0 && !isNaN(parseFloat(v)))) setAssemblyPrice(v)
+                  }}
+                  onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
                   className="w-36 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-400 tabular-nums"
                 />
                 <span className="text-xs text-slate-400">Fechamento, ajuste de arquivo, pré-montagem</span>

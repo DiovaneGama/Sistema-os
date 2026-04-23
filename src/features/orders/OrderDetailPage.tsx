@@ -12,8 +12,6 @@ import { EditOrderModal } from './components/EditOrderModal'
 import {
   STATUS_LABELS,
   STATUS_COLORS,
-  getNextStatus,
-  getNextStatusLabel,
 } from '../production/utils/statusConfig'
 import type { OrderStatus } from '../../types/database'
 
@@ -96,9 +94,7 @@ export function OrderDetailPage() {
   const { profile } = useAuth()
   const { role } = useRole()
   const { order, loading, error, reload } = useOrderDetail(id)
-  const { updateStatus, cancelOrder } = useOrderMutations()
-  const [advancing, setAdvancing] = useState(false)
-  const [advanceError, setAdvanceError] = useState<string | null>(null)
+  const { cancelOrder } = useOrderMutations()
   const autoAdvanced = useRef(false)
   const [editModal,   setEditModal]   = useState(false)
   const [cancelModal, setCancelModal] = useState(false)
@@ -124,23 +120,6 @@ export function OrderDetailPage() {
     reload()
   }
 
-  async function handleAdvance() {
-    if (!order || !role || !profile) return
-    const next = getNextStatus(order.status, role)
-    if (!next) return
-
-    setAdvancing(true)
-    setAdvanceError(null)
-    const result = await updateStatus(order.id, next as OrderStatus, profile.id)
-    setAdvancing(false)
-
-    if (!result.ok) {
-      setAdvanceError(result.error ?? 'Erro ao avançar status')
-      return
-    }
-    reload()
-  }
-
   // ── Loading / erro ──────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -162,8 +141,7 @@ export function OrderDetailPage() {
   }
 
   const sc = STATUS_COLORS[order.status]
-  const nextLabel = role ? getNextStatusLabel(order.status, role) : null
-  const timeline = buildTimeline(order)
+const timeline = buildTimeline(order)
   const canEdit = role && ['sysadmin','admin_master','gestor_pcp','arte_finalista'].includes(role)
     && !['despachado','cancelado'].includes(order.status)
     && !order.specs?.frozen
@@ -232,23 +210,13 @@ export function OrderDetailPage() {
                 Cancelar OS
               </button>
             )}
-            <div className="flex flex-col items-end gap-1">
-              {nextLabel && (
-                <button
-                  onClick={handleAdvance}
-                  disabled={advancing}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                >
-                  {advancing
-                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    : <ChevronRight className="h-3.5 w-3.5" />}
-                  {nextLabel}
-                </button>
-              )}
-              {advanceError && (
-                <p className="text-xs text-red-500">{advanceError}</p>
-              )}
-            </div>
+            <Link
+              to="/production"
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+              Ver na Fila
+            </Link>
           </div>
         </div>
       </div>

@@ -78,15 +78,29 @@ export function ProductionPage() {
   }
 
   async function handlePricingConfirmDirect(orderId: string) {
+    // Verifica prints obrigatórios antes de avançar direto para producao
+    const order = orders.find(o => o.id === orderId)
+    const missingPrints = order ? [
+      !order.thumbnail_url     && 'Print Serviço',
+      !order.machine_print_url && 'Print Máquina',
+      (!order.color_proof_url && !order.no_color_proof) && 'Prova de Cores',
+    ].filter(Boolean) as string[] : []
+
+    if (missingPrints.length > 0) {
+      alert(`Não é possível enviar para Produção. Prints obrigatórios pendentes: ${missingPrints.join(', ')}.`)
+      return
+    }
+
     const now = new Date().toISOString()
-    // Update único com todos os timestamps — evita race condition com trigger de comissão
-    await (supabase as any).from('orders').update({
+    const { error, count } = await (supabase as any).from('orders').update({
       status:                'producao',
       treatment_ended_at:    now,
       production_queued_at:  now,
       production_started_at: now,
       updated_at:            now,
-    }).eq('id', orderId)
+    }, { count: 'exact' }).eq('id', orderId)
+    if (error) { alert('Erro ao avançar status: ' + error.message); return }
+    if (count === 0) { alert('Nenhuma linha atualizada — verifique RLS ou se a OS existe (id: ' + orderId + ')') }
     setPricingOrderId(null)
     reload()
   }
