@@ -246,8 +246,14 @@ export function buildNetworkName(opts: {
   const sanitize = (s: string) =>
     s.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '')
 
-  const nickname = sanitize(opts.nickname).toUpperCase()
-  const substrate = sanitize(opts.substrate).toUpperCase()
+  const capitalize = (s: string) => {
+    const san = sanitize(s)
+    return san.charAt(0).toUpperCase() + san.slice(1).toLowerCase()
+  }
+
+  const nickname = capitalize(opts.nickname)
+  const substrate = capitalize(opts.substrate)
+  const firstNameOnly = (n: string) => sanitize(n.trim().split(/\s+/)[0])
   const lineature = sanitize(opts.lineature)
   const thickness = opts.thickness.replace('.', '_')
   const COLOR_ABBR: Record<string, string> = {
@@ -265,7 +271,7 @@ export function buildNetworkName(opts: {
     })
     .join('')
   const serviceName = sanitize(opts.serviceName)
-  const userName = sanitize(opts.userName)
+  const userName = firstNameOnly(opts.userName)
 
   const parts = [`${dateStr}_-_${nickname}`]
   if (opts.includeSubstrate) parts.push(substrate)

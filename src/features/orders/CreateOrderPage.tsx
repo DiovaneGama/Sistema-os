@@ -133,6 +133,7 @@ export function CreateOrderPage() {
       }
       if (specs?.no_color_proof) setNoColorProof(true)
 
+      setOpenBlock(1)
       setDraftSaved(true)
       setLoadingDraft(false)
     }
