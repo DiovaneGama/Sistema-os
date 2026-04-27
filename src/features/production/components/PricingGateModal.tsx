@@ -197,7 +197,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
         const w    = parseNum(src.width_cm)
         const h    = parseNum(src.height_cm)
         const sets = parseNum(src.num_sets) || 1
-        const area = w * h * sets
+        const area = (w + BLEED_CM) * (h + BLEED_CM) * sets
         const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
         updated.price = calc > 0 ? truncate2(calc) : ''
       }
@@ -213,7 +213,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
       const w    = parseNum(row.width_cm)
       const h    = parseNum(row.height_cm)
       const sets = parseNum(row.num_sets) || 1
-      const area = w * h * sets
+      const area = (w + BLEED_CM) * (h + BLEED_CM) * sets
       const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
       row.price       = calc > 0 ? truncate2(calc) : ''
       row.manualPrice = false
