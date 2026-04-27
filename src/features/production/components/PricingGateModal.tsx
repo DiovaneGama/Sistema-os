@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, DollarSign, RefreshCw, Calculator, Copy } from 'lucide-react'
+import { X, DollarSign, RefreshCw, Calculator, Copy, Ruler } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
-import type { ProductionOrder } from '../hooks/useProductionOrders'
+import { calcMontagePricingDimensions } from '../utils/montageCalc'
 
 interface ColorRow {
   id: string
@@ -11,13 +11,24 @@ interface ColorRow {
   num_sets: string
   price: string        // calculado ou editado manualmente
   manualPrice: boolean // se o usuário sobrescreveu o cálculo automático
+  autoFromMontage: boolean // dimensões pré-calculadas da montagem banda estreita
+}
+
+interface OrderMinimal {
+  id: string
+  order_number: string
+  client_id: string | null
+  client_nickname: string | null
+  client_name: string | null
 }
 
 interface Props {
-  order: ProductionOrder
+  order: OrderMinimal
+  mode?: 'gate' | 'edit'
   onClose: () => void
-  onConfirm: (orderId: string) => Promise<void>
-  onConfirmDirect: (orderId: string) => Promise<void>
+  onSaved?: () => void
+  onConfirm?: (orderId: string) => Promise<void>
+  onConfirmDirect?: (orderId: string) => Promise<void>
 }
 
 const INPUT = 'w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums'
@@ -30,20 +41,21 @@ function parseNum(s: string): number {
   return parseFloat(s.replace(',', '.')) || 0
 }
 
-export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }: Props) {
+export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onConfirm, onConfirmDirect }: Props) {
   const [colors,         setColors]         = useState<ColorRow[]>([])
   const [assemblyPrice,  setAssemblyPrice]  = useState('0')
   const [pricePerCm2,    setPricePerCm2]    = useState<number | null>(null)
   const [exemptMinPrice, setExemptMinPrice] = useState(false)
   const [loading,        setLoading]        = useState(true)
   const [saving,         setSaving]         = useState(false)
+  const [montageCalc,    setMontageCalc]    = useState<{ width: number; height: number } | null>(null)
 
   const MIN_PRICE = 25
 
   // Busca cores da OS + price_per_cm2 do cliente
   useEffect(() => {
     async function load() {
-      const [colorsRes, clientRes, financialsRes] = await Promise.all([
+      const [colorsRes, clientRes, financialsRes, specsRes] = await Promise.all([
         (supabase as any)
           .from('order_colors')
           .select('id, color_name, width_cm, height_cm, num_sets, price, sort_order')
@@ -61,6 +73,11 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
           .select('assembly_price')
           .eq('order_id', order.id)
           .maybeSingle(),
+        (supabase as any)
+          .from('order_specs')
+          .select('service_type, band_type, gear_z, pi_value, tracks, gap_tracks_mm, largura_faca_mm')
+          .eq('order_id', order.id)
+          .maybeSingle(),
       ])
 
       const pCm2: number | null = clientRes.data?.price_per_cm2 ?? null
@@ -72,22 +89,31 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
         setAssemblyPrice(String(financialsRes.data.assembly_price))
       }
 
+      // Calcula dimensões automáticas para montagem banda estreita
+      const montageDims = calcMontagePricingDimensions(specsRes.data ?? null)
+      const autoWidth  = montageDims?.width  ?? null
+      const autoHeight = montageDims?.height ?? null
+      if (montageDims) setMontageCalc(montageDims)
+      const isMontageEstreita = montageDims !== null
+
       const applyMinLocal = (price: number) => exempt ? price : Math.max(price, MIN_PRICE)
 
       const rows: ColorRow[] = (colorsRes.data ?? []).map((c: any) => {
-        const w    = c.width_cm  ?? 0
-        const h    = c.height_cm ?? 0
-        const sets = c.num_sets  ?? 1
+        // Usa dimensões da montagem se calculadas, caso contrário usa o que já estava salvo
+        const w    = autoWidth  ?? (c.width_cm  ?? 0)
+        const h    = autoHeight ?? (c.height_cm ?? 0)
+        const sets = c.num_sets ?? 1
         const area = w * h * sets
         const calc = pCm2 && area > 0 ? applyMinLocal(area * pCm2) : (c.price ?? 0)
         return {
-          id:          c.id,
-          color_name:  c.color_name,
-          width_cm:    w > 0    ? String(w)    : '',
-          height_cm:   h > 0    ? String(h)    : '',
-          num_sets:    String(sets),
-          price:       c.price != null ? String(c.price) : (calc > 0 ? calc.toFixed(2) : ''),
-          manualPrice: c.price != null && pCm2 != null,
+          id:              c.id,
+          color_name:      c.color_name,
+          width_cm:        w > 0 ? Number(w.toFixed(2)).toString() : '',
+          height_cm:       h > 0 ? Number(h.toFixed(2)).toString() : '',
+          num_sets:        String(sets),
+          price:           c.price != null ? String(c.price) : (calc > 0 ? calc.toFixed(2) : ''),
+          manualPrice:     c.price != null && pCm2 != null && !isMontageEstreita,
+          autoFromMontage: !!isMontageEstreita,
         }
       })
       setColors(rows)
@@ -104,6 +130,8 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
     setColors(prev => {
       const next = [...prev]
       const row  = { ...next[index], [field]: value }
+
+      if (['width_cm', 'height_cm'].includes(field)) row.autoFromMontage = false
 
       if (['width_cm', 'height_cm', 'num_sets'].includes(field) && !row.manualPrice && pricePerCm2) {
         const w    = parseNum(row.width_cm)
@@ -275,6 +303,20 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
             </div>
           ) : (
             <>
+              {/* Banner montagem automática */}
+              {montageCalc && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <Ruler className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-800">
+                    <span className="font-semibold">Dimensões calculadas automaticamente da montagem</span>
+                    <span className="ml-1 text-emerald-600">
+                      ({montageCalc.width.toFixed(2)} cm × {montageCalc.height.toFixed(2)} cm — inclui 1cm de sangria em cada lado)
+                    </span>
+                    <p className="mt-0.5 text-emerald-700 font-normal">Revise os jogos por cor e confirme o valor antes de aprovar.</p>
+                  </div>
+                </div>
+              )}
+
               {/* Tabela de cores */}
               <table className="w-full text-sm">
                 <thead>
@@ -300,7 +342,7 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                             value={c.width_cm}
                             onChange={e => handleDimensionChange(i, 'width_cm', e.target.value)}
                             onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
-                            className={INPUT}
+                            className={[INPUT, c.autoFromMontage ? 'border-emerald-300 bg-emerald-50' : ''].join(' ')}
                             placeholder="0.00"
                           />
                         </td>
@@ -310,7 +352,7 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
                             value={c.height_cm}
                             onChange={e => handleDimensionChange(i, 'height_cm', e.target.value)}
                             onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
-                            className={INPUT}
+                            className={[INPUT, c.autoFromMontage ? 'border-emerald-300 bg-emerald-50' : ''].join(' ')}
                             placeholder="0.00"
                           />
                         </td>
@@ -418,22 +460,35 @@ export function PricingGateModal({ order, onClose, onConfirm, onConfirmDirect }:
             Cancelar
           </button>
           <div className="flex gap-2">
-            <button
-              onClick={() => handleConfirm(onConfirm)}
-              disabled={!allFilled || saving || loading}
-              className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors flex items-center gap-2"
-            >
-              {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-              Aguardar CDI
-            </button>
-            <button
-              onClick={() => handleConfirm(onConfirmDirect)}
-              disabled={!allFilled || saving || loading}
-              className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-            >
-              {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-              Enviar para Produção
-            </button>
+            {mode === 'edit' ? (
+              <button
+                onClick={() => handleConfirm(async () => { onSaved?.() })}
+                disabled={!allFilled || saving || loading}
+                className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                Salvar Precificação
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => onConfirm && handleConfirm(onConfirm)}
+                  disabled={!allFilled || saving || loading}
+                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                  Aguardar CDI
+                </button>
+                <button
+                  onClick={() => onConfirmDirect && handleConfirm(onConfirmDirect)}
+                  disabled={!allFilled || saving || loading}
+                  className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                  Enviar para Produção
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

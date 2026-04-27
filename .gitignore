@@ -15,6 +15,14 @@ dist-ssr
 # Claude Code — overrides pessoais (nunca commitar)
 CLAUDE.local.md
 
+# Playwright
+/playwright-report/
+/test-results/
+src/tests/e2e/.auth/
+
+# Variáveis de ambiente de teste (contém credenciais)
+.env.test
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
