@@ -115,7 +115,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
           width_cm:        w > 0 ? Number(w.toFixed(2)).toString() : '',
           height_cm:       h > 0 ? Number(h.toFixed(2)).toString() : '',
           num_sets:        String(sets),
-          price:           c.price != null ? String(c.price) : (calc > 0 ? calc.toFixed(2) : ''),
+          price:           c.price != null ? String(c.price) : (calc > 0 ? truncate2(calc) : ''),
           manualPrice:     c.price != null && pCm2 != null && !isMontageEstreita,
           autoFromMontage: !!isMontageEstreita,
         }
@@ -143,7 +143,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
         const sets = parseNum(row.num_sets) || 1
         const area = (w + BLEED_CM) * (h + BLEED_CM) * sets
         const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
-        row.price  = calc > 0 ? calc.toFixed(2) : ''
+        row.price  = calc > 0 ? truncate2(calc) : ''
       }
 
       if (field === 'price') row.manualPrice = true
@@ -151,6 +151,10 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
       next[index] = row
       return next
     })
+  }
+
+  function truncate2(n: number): string {
+    return (Math.trunc(n * 100) / 100).toFixed(2)
   }
 
   // Valida valor numérico não-negativo em BRL (aceita vírgula ou ponto como decimal)
@@ -195,7 +199,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
         const sets = parseNum(src.num_sets) || 1
         const area = w * h * sets
         const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
-        updated.price = calc > 0 ? calc.toFixed(2) : ''
+        updated.price = calc > 0 ? truncate2(calc) : ''
       }
       return updated
     }))
@@ -211,7 +215,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
       const sets = parseNum(row.num_sets) || 1
       const area = w * h * sets
       const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
-      row.price       = calc > 0 ? calc.toFixed(2) : ''
+      row.price       = calc > 0 ? truncate2(calc) : ''
       row.manualPrice = false
       next[index]     = row
       return next
