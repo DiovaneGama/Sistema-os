@@ -3,6 +3,10 @@ import { X, DollarSign, RefreshCw, Calculator, Copy, Ruler } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { calcMontagePricingDimensions } from '../utils/montageCalc'
 
+// Sangria aplicada em cada eixo (1cm em cada lado = 2cm total por dimensão).
+// Aplicada na fórmula de área — os campos exibem as dimensões brutas da faca.
+const BLEED_CM = 2
+
 interface ColorRow {
   id: string
   color_name: string
@@ -103,7 +107,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
         const w    = autoWidth  ?? (c.width_cm  ?? 0)
         const h    = autoHeight ?? (c.height_cm ?? 0)
         const sets = c.num_sets ?? 1
-        const area = w * h * sets
+        const area = (w + BLEED_CM) * (h + BLEED_CM) * sets
         const calc = pCm2 && area > 0 ? applyMinLocal(area * pCm2) : (c.price ?? 0)
         return {
           id:              c.id,
@@ -137,7 +141,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
         const w    = parseNum(row.width_cm)
         const h    = parseNum(row.height_cm)
         const sets = parseNum(row.num_sets) || 1
-        const area = w * h * sets
+        const area = (w + BLEED_CM) * (h + BLEED_CM) * sets
         const calc = area > 0 ? applyMin(area * pricePerCm2) : 0
         row.price  = calc > 0 ? calc.toFixed(2) : ''
       }
@@ -310,7 +314,7 @@ export function PricingGateModal({ order, mode = 'gate', onClose, onSaved, onCon
                   <div className="text-xs text-emerald-800">
                     <span className="font-semibold">Dimensões calculadas automaticamente da montagem</span>
                     <span className="ml-1 text-emerald-600">
-                      ({montageCalc.width.toFixed(2)} cm × {montageCalc.height.toFixed(2)} cm — inclui 1cm de sangria em cada lado)
+                      ({montageCalc.width.toFixed(2)} cm × {montageCalc.height.toFixed(2)} cm — área calculada com +1cm de sangria em cada lado)
                     </span>
                     <p className="mt-0.5 text-emerald-700 font-normal">Revise os jogos por cor e confirme o valor antes de aprovar.</p>
                   </div>
